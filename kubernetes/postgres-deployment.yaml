@@ -19,11 +19,20 @@ spec:
         - containerPort: 5432
         env:
         - name: POSTGRES_DB
-          value: "appdb"
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: POSTGRES_DB
         - name: POSTGRES_USER
-          value: "appuser"
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: POSTGRES_USER
         - name: POSTGRES_PASSWORD
-          value: "apppassword"
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: POSTGRES_PASSWORD
         volumeMounts:
         - mountPath: "/var/lib/postgresql/data"
           name: postgres-storage
@@ -40,5 +49,8 @@ spec:
   selector:
     app: postgres
   ports:
-  - port: 5432
-  clusterIP: None  # Allows direct pod-to-pod communication
+  - name: postgres
+    protocol: TCP
+    port: 5432
+    targetPort: 5432
+  type: ClusterIP  # Keeps this service internal
