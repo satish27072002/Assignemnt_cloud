@@ -8,17 +8,24 @@ spec:
   - host: task-user.local
     http:
       paths:
-      - path: /
+      - path: /api/tasks
         pathType: Prefix
         backend:
           service:
             name: task-service
             port:
               number: 80
-      - path: /user
+      - path: /api/user
         pathType: Prefix
         backend:
           service:
             name: user-service
+            port:
+              number: 80
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
             port:
               number: 80

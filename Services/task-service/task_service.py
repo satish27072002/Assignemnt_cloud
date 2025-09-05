@@ -79,6 +79,7 @@ def home():
 
 # Health check endpoint
 @app.route('/health', methods=['GET'])
+@app.route('/api/health', methods=['GET'])
 def health_check():
     """Health check endpoint."""
     try:
@@ -96,6 +97,7 @@ def health_check():
 
 # Create task endpoint
 @app.route('/tasks', methods=['POST'])
+@app.route('/api/tasks', methods=['POST'])
 def create_task():
     """Endpoint to create a new task."""
     try:
@@ -128,6 +130,7 @@ def create_task():
 
 # Get tasks endpoint
 @app.route('/tasks', methods=['GET'])
+@app.route('/api/tasks', methods=['GET'])
 def get_tasks():
     """Endpoint to retrieve all tasks."""
     try:

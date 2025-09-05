@@ -81,6 +81,7 @@ def home():
 
 @app.route('/register', methods=['POST'])
 @app.route('/user/register', methods=['POST'])
+@app.route('/api/user/register', methods=['POST'])
 def register_user():
     """Endpoint to register a new user."""
     try:
@@ -116,6 +117,7 @@ def register_user():
 
 @app.route('/users', methods=['GET'])
 @app.route('/user/users', methods=['GET'])
+@app.route('/api/user/users', methods=['GET'])
 def get_users():
     """Endpoint to retrieve all registered users."""
     try:
@@ -141,6 +143,7 @@ def get_users():
 
 @app.route('/health', methods=['GET'])
 @app.route('/user/health', methods=['GET'])
+@app.route('/api/user/health', methods=['GET'])
 def health():
     try:
         init_db()
