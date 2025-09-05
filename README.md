@@ -64,12 +64,15 @@ Both services expose a friendly HTML homepage and a JSON REST API. Health endpoi
 ## Build and Images
 
 Manifests reference prebuilt images:
-- `satish27072002/user-service:v4`
-- `satish27072002/task-service:v4`
+- For local dev on Mac/ARM, we use local images built into minikube.
+- For submission (Docker Hub), push multi-arch images and update manifests.
 
 If you change code and want to publish your own images:
-1. Build locally: `docker build -t <dockerhub-user>/user-service:<tag> Services/user-service` and same for task.
-2. Push: `docker push <dockerhub-user>/user-service:<tag>` and update `kubernetes/*-service.yaml` image fields.
+1) Login to Docker Hub: `docker login`
+2) Build and push multi-arch images:
+   `DOCKERHUB_USER=<your_user> TAG=v1 scripts/build_push.sh`
+3) Update manifests to your images (script prints suggested `sed` commands), then:
+   `kubectl apply -f kubernetes/user-service.yaml && kubectl apply -f kubernetes/task-service.yaml`
 
 ## Deployment
 
