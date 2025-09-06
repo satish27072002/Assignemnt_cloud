@@ -41,9 +41,26 @@
       if (r.ok) {
         r.data.forEach(t => {
           const li = document.createElement('li');
-          li.textContent = `${t.title}: ${t.description}`;
+          li.innerHTML = `
+            <span style="${t.status ? 'text-decoration: line-through; color:#555;' : ''}"><strong>${t.title}</strong>: ${t.description}</span>
+            <button data-id="${t.id}" class="btn-complete" ${t.status ? 'disabled' : ''}>Complete</button>
+            <button data-id="${t.id}" class="btn-delete">Delete</button>
+          `;
           list.appendChild(li);
         });
+        document.querySelectorAll('.btn-complete').forEach(btn => btn.addEventListener('click', async (e) => {
+          const id = e.target.getAttribute('data-id');
+          const r = await api(`/api/tasks/${id}/complete`, { method: 'PATCH' });
+          if (!r.ok) alert('Failed to complete task');
+          loadTasks();
+        }));
+        document.querySelectorAll('.btn-delete').forEach(btn => btn.addEventListener('click', async (e) => {
+          const id = e.target.getAttribute('data-id');
+          if (!confirm('Delete this task?')) return;
+          const r = await api(`/api/tasks/${id}`, { method: 'DELETE' });
+          if (!r.ok) alert('Failed to delete task');
+          loadTasks();
+        }));
       } else {
         list.innerHTML = `<li class="err">Failed to load tasks (${r.status})</li>`;
       }
@@ -139,4 +156,3 @@
     <p class="footer">Frontend served by Nginx; APIs under /api/tasks and /api/user.</p>
   </body>
   </html>
-

@@ -1,159 +1,115 @@
 # Task Manager Microservices
 
-A small, Kubernetes-deployable microservices application with two independent Flask-based services and a PostgreSQL database with persistent storage. The app demonstrates designing, containerizing, and deploying horizontally scalable microservices with REST APIs, Ingress access, and a stateful database.
+A Kubernetes-deployable microservices app with:
+- User API (Flask) to register/list users
+- Task API (Flask) to create/list/complete/delete tasks
+- Frontend (Nginx static HTML/JS) for an interactive UI
+- PostgreSQL with persistent storage
+- Ingress for browser access and independent horizontal scaling
 
-## What It Does
-
-- `user-service`: Registers users and lists users (backed by PostgreSQL).
-- `task-service`: Creates tasks and lists tasks (backed by PostgreSQL).
-- `postgres`: Stores user and task data, persisted across pod restarts via a PersistentVolume.
-- `Ingress`: Routes external traffic to services (`/` to task-service, `/user` to user-service).
-
-Both services expose a friendly HTML homepage and a JSON REST API. Health endpoints enable Kubernetes liveness/readiness probes.
+Both APIs provide health endpoints; services initialize their tables automatically.
 
 ## Architecture
 
 - Components:
+  - Frontend (`Services/frontend`): Nginx serves `index.html` and reverse-proxies API calls:
+    - `/api/tasks` → task-service
+    - `/api/user` → user-service
+    - `/api/health` → task-service health
   - User API (`Services/user-service`):
-    - REST: `POST /register`, `GET /users`, `GET /health`.
-    - Uses env vars `POSTGRES_*` for DB config.
-    - Auto-creates `users` table if not present.
+    - REST: `POST /register`, `GET /users`, `GET /health`
+    - Also accepts prefixed routes: `/api/user/register`, `/api/user/users`, `/api/user/health`
   - Task API (`Services/task-service`):
-    - REST: `POST /tasks`, `GET /tasks`, `GET /health`.
-    - Uses env vars `POSTGRES_*` for DB config.
-    - Auto-creates `tasks` table if not present.
-  - Database (`kubernetes/postgres-*.yaml`):
-    - Single Postgres deployment + service, with `PersistentVolume` and `PersistentVolumeClaim`.
-  - Ingress (`kubernetes/ingress.yaml`):
-    - Host: `task-user.local`
-    - `/` -> task-service, `/user` -> user-service
+    - REST: `POST /tasks`, `GET /tasks`, `PATCH /tasks/{id}/complete`, `DELETE /tasks/{id}`, `GET /health`
+    - Also accepts prefixed routes under `/api/tasks` and `/api/health`
+  - Database (`kubernetes/postgres-*.yaml`): Postgres Deployment + Service with PV/PVC persistence
+  - Ingress (`kubernetes/ingress.yaml`): Routes `/` → frontend, `/api/tasks` → task-service, `/api/user` → user-service
 
-- Principles and patterns:
-  - Microservices: Independent deployability and scaling (`replicas: 2` per service).
-  - Stateless services: State kept only in PostgreSQL.
-  - Externalization of config via environment variables and Secrets.
-  - Health probes for robust orchestration (readiness/liveness).
-  - Ingress-based north-south access for external clients.
-
-- Mapping:
-  - User component -> `user-service` Deployment/Service
-  - Task component -> `task-service` Deployment/Service
-  - Data persistence -> `postgres` Deployment/Service + PV/PVC
-
-## Benefits and Challenges
-
-- Benefits:
-  - Independent scaling: Adjust replicas per service based on load.
-  - Clear separation of concerns: User vs Task responsibilities.
-  - Portability: Container images deploy on any K8s cluster.
-  - Observability hooks: Health endpoints for probes.
-
-- Challenges and mitigations:
-  - Service startup vs DB readiness: Health probes + lazy table init prevent crash loops; retries handled by K8s.
-  - Schema migrations: For simplicity, use `CREATE TABLE IF NOT EXISTS`; production would adopt a migrations tool.
-  - Stateful data on local clusters: `hostPath` PV is node-bound. Use a StorageClass/Provisioner or a managed Postgres in cloud.
-  - Security: Secrets used for DB creds; prefer per-service Secrets mounted as env vars, separate credentials per service, and NetworkPolicies to restrict east-west traffic. Add TLS to Ingress in real deployments, plus pod security contexts and resource quotas. Add authN/Z for APIs (omitted for brevity); use mTLS/service mesh for stronger S2S security.
+- Principles:
+  - Microservices with independent scaling (`replicas: 2`)
+  - Stateless services; state in Postgres
+  - Config via env vars and Secret
+  - Health probes and readiness gates
+  - Clear north-south routing via Ingress
 
 ## Prerequisites
 
-- Kubernetes cluster (e.g., minikube, Docker Desktop, kind).
-- NGINX Ingress Controller installed (for `ingressClassName: nginx`).
-- `kubectl` configured to target your cluster.
-- Optional: `minikube addons enable ingress` if using minikube.
+- Docker Desktop (running)
+- Homebrew (macOS), `kubectl`, `minikube`
+- Ingress: `minikube addons enable ingress`
 
-## Build and Images
+## Quick Start (Local Dev)
 
-Manifests reference prebuilt images:
-- For local dev on Mac/ARM, we use local images built into minikube.
-- For submission (Docker Hub), push multi-arch images and update manifests.
+1) Start cluster and ingress
+- `minikube start --driver=docker`
+- `minikube addons enable ingress`
+- Ensure PV path in minikube: `minikube ssh -- 'sudo mkdir -p /mnt/data/postgres && sudo chown -R 999:999 /mnt/data/postgres'`
 
-If you change code and want to publish your own images:
-1) Login to Docker Hub: `docker login`
-2) Build and push multi-arch images:
-   `DOCKERHUB_USER=<your_user> TAG=v1 scripts/build_push.sh`
-3) Update manifests to your images (script prints suggested `sed` commands), then:
-   `kubectl apply -f kubernetes/user-service.yaml && kubectl apply -f kubernetes/task-service.yaml`
+2) Build images directly into minikube
+- `minikube image build -t user-service:local Services/user-service`
+- `minikube image build -t task-service:local Services/task-service`
+- `minikube image build -t frontend:local Services/frontend`
 
-## Deployment
-
-1) Create persistent volume and claim (for local clusters):
-- Ensure the path exists on your node: `/mnt/data/postgres` (create it if needed). On minikube: `minikube ssh -- sudo mkdir -p /mnt/data/postgres && sudo chown 1000:1000 /mnt/data/postgres`.
-
-2) Apply Kubernetes manifests (namespace default):
+3) Deploy manifests
 - `kubectl apply -f kubernetes/postgres-pv.yaml`
 - `kubectl apply -f kubernetes/postgres-secret.yaml`
 - `kubectl apply -f kubernetes/postgres-deployment.yaml`
 - `kubectl apply -f kubernetes/user-service.yaml`
 - `kubectl apply -f kubernetes/task-service.yaml`
+- `kubectl apply -f kubernetes/frontend.yaml`
 - `kubectl apply -f kubernetes/ingress.yaml`
 
-3) Wait for pods to be Ready:
-- `kubectl get pods -w`
+4) Wait for pods
+- `kubectl rollout status deployment/postgres --timeout=180s`
+- `kubectl rollout status deployment/user-service --timeout=240s`
+- `kubectl rollout status deployment/task-service --timeout=240s`
+- `kubectl rollout status deployment/frontend --timeout=240s`
 
-4) Add host entry for Ingress (if using a local cluster):
-- Resolve `task-user.local` to your ingress controller IP.
-  - minikube: `echo "$(minikube ip) task-user.local" | sudo tee -a /etc/hosts`
-  - Docker Desktop: use `127.0.0.1` if port forwarding is set by the controller.
+5) Access the app
+- Ingress host: `echo "$(minikube ip) task-user.local" | sudo tee -a /etc/hosts`
+- Open UI: `http://task-user.local/`
+- APIs via Ingress: `http://task-user.local/api/tasks`, `http://task-user.local/api/user`
 
-## Access and Test
+Alternative (port-forward)
+- Frontend: `kubectl port-forward service/frontend 8080:80` → `http://localhost:8080/`
+- Task API: `kubectl port-forward service/task-service 8081:80` → `http://localhost:8081/`
+- User API: `kubectl port-forward service/user-service 8082:80` → `http://localhost:8082/`
 
-- Task Service (via Ingress):
-  - Home: `http://task-user.local/`
-  - Health: `http://task-user.local/health`
-  - API:
-    - Create task: `POST http://task-user.local/tasks` JSON `{ "title": "T1", "description": "D1" }`
-    - List tasks: `GET http://task-user.local/tasks`
+## Endpoints Summary
 
-- User Service (via Ingress):
-  - Home: `http://task-user.local/user/`
-  - Health: `http://task-user.local/user/health`
-  - API:
-    - Register: `POST http://task-user.local/user/register` JSON `{ "name": "Alice", "email": "alice@example.com" }`
-    - List users: `GET http://task-user.local/user/users`
+- Frontend UI: `/`
+- Task API:
+  - `GET /api/health` (health)
+  - `GET /api/tasks` (list)
+  - `POST /api/tasks` (create: { title, description })
+  - `PATCH /api/tasks/{id}/complete` (complete)
+  - `DELETE /api/tasks/{id}` (delete)
+- User API:
+  - `GET /api/user/health` (health)
+  - `GET /api/user/users` (list)
+  - `POST /api/user/register` (create: { name, email })
 
-- Example using curl:
-```
-curl -X POST -H "Content-Type: application/json" \
-  -d '{"name":"Alice","email":"alice@example.com"}' \
-  http://task-user.local/user/register
+## Publish Images to Docker Hub (Optional)
 
-curl http://task-user.local/user/users
+1) Login: `docker login`
+2) Build and push multi-arch images:
+- `DOCKERHUB_USER=<your_user> TAG=v1 scripts/build_push.sh`
+3) Update `image:` in manifests to your tags:
+- `kubernetes/user-service.yaml` → `<your_user>/user-service:v1`
+- `kubernetes/task-service.yaml` → `<your_user>/task-service:v1`
+- Optionally create a frontend repo/tag and update `kubernetes/frontend.yaml`
+4) Re-apply: `kubectl apply -f kubernetes/`
 
-curl -X POST -H "Content-Type: application/json" \
-  -d '{"title":"Buy milk","description":"2L whole"}' \
-  http://task-user.local/tasks
+## Troubleshooting
 
-curl http://task-user.local/tasks
-```
+- 502 via tunnels: Prefer port-forward or run a single tunnel to the frontend (same-origin) so `/api/*` works.
+- Pods Pending/CrashLoop: `kubectl describe pod <pod>`, `kubectl logs <pod>`.
+- Ingress not routing: ensure addon enabled and hosts entry added; on some setups use `minikube tunnel`.
+- Postgres path: PV uses `/mnt/data/postgres` inside minikube VM.
 
-## Horizontal Scaling
+## Presentation Notes
 
-- Each service Deployment uses `replicas: 2`. Scale independently:
-```
-kubectl scale deployment user-service --replicas=3
-kubectl scale deployment task-service --replicas=4
-```
-
-## Repository Structure
-
-- `Services/user-service/`: Flask user service + Dockerfile
-- `Services/task-service/`: Flask task service + Dockerfile
-- `kubernetes/`: All manifests (DB PV/PVC, DB deployment, services, ingress, secret)
-
-## Runbook Notes
-
-- If Postgres isn’t ready initially, services report Unhealthy via `/health` until DB connections succeed. Probes gate traffic until ready.
-- `hostPath` PV is only suitable for single-node dev clusters. Use a proper StorageClass (e.g., standard/minikube-hostpath) or managed storage in cloud.
-- For production, add:
-  - TLS to Ingress, mTLS between services, NetworkPolicies.
-  - AuthN/Z on APIs (JWT/OAuth2), rate limiting, request validation.
-  - Centralized logging/metrics (e.g., ELK/EFK, Prometheus/Grafana).
-
-## Presenting the Project
-
-Be ready to:
-- Explain the microservices idea (Users and Tasks) and how each service’s API works.
-- Discuss independent scaling and statelessness with a shared DB.
-- Show Kubernetes manifests, how Ingress exposes the app, and how PV/PVC persist data.
-- Discuss security tradeoffs and mitigations (Secrets, probes, Ingress, future TLS/NetworkPolicies/Auth).
-- Run a demo using the steps above, show pod logs (`kubectl logs`), and scale a service live.
+- Show UI interactions (create/complete/delete tasks, register users)
+- Show logs: `kubectl logs deployment/* -f`
+- Scale services independently with `kubectl scale`
+- Discuss architecture, security, and deployment decisions
