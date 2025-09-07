@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Task Manager</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { margin-bottom: 4px; }
+    .row { display: flex; gap: 24px; flex-wrap: wrap; }
+    .card { border: 1px solid #ddd; padding: 16px; border-radius: 8px; width: 360px; }
+    label { display: block; margin: 6px 0 2px; }
+    input, textarea { width: 100%; padding: 8px; margin-bottom: 8px; }
+    button { padding: 8px 12px; cursor: pointer; }
+    ul { padding-left: 18px; }
+    .ok { color: #0a0; }
+    .err { color: #a00; }
+    .footer { margin-top: 24px; font-size: 12px; color: #666; }
+  </style>
+  <script>
+    async function api(path, options={}) {
+      const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...options });
+      const text = await res.text();
+      try { return { ok: res.ok, status: res.status, data: JSON.parse(text) }; }
+      catch { return { ok: res.ok, status: res.status, data: text }; }
+    }
+
+    async function checkHealth() {
+      const t = await api('/api/health'); // task-service aliased health
+      const u = await api('/api/user/health');
+      document.getElementById('task-health').textContent = t.ok ? 'healthy' : 'unhealthy';
+      document.getElementById('user-health').textContent = u.ok ? 'healthy' : 'unhealthy';
+      document.getElementById('task-health').className = t.ok ? 'ok' : 'err';
+      document.getElementById('user-health').className = u.ok ? 'ok' : 'err';
+    }
+
+    async function loadTasks() {
+      const r = await api('/api/tasks');
+      const list = document.getElementById('tasks');
+      list.innerHTML = '';
+      if (r.ok) {
+        r.data.forEach(t => {
+          const li = document.createElement('li');
+          li.innerHTML = `
+            <span style="${t.status ? 'text-decoration: line-through; color:#555;' : ''}"><strong>${t.title}</strong>: ${t.description}</span>
+            <button data-id="${t.id}" class="btn-complete" ${t.status ? 'disabled' : ''}>Complete</button>
+            <button data-id="${t.id}" class="btn-delete">Delete</button>
+          `;
+          list.appendChild(li);
+        });
+        document.querySelectorAll('.btn-complete').forEach(btn => btn.addEventListener('click', async (e) => {
+          const id = e.target.getAttribute('data-id');
+          const r = await api(`/api/tasks/${id}/complete`, { method: 'PATCH' });
+          if (!r.ok) alert('Failed to complete task');
+          loadTasks();
+        }));
+        document.querySelectorAll('.btn-delete').forEach(btn => btn.addEventListener('click', async (e) => {
+          const id = e.target.getAttribute('data-id');
+          if (!confirm('Delete this task?')) return;
+          const r = await api(`/api/tasks/${id}`, { method: 'DELETE' });
+          if (!r.ok) alert('Failed to delete task');
+          loadTasks();
+        }));
+      } else {
+        list.innerHTML = `<li class="err">Failed to load tasks (${r.status})</li>`;
+      }
+    }
+
+    async function loadUsers() {
+      const r = await api('/api/user/users');
+      const list = document.getElementById('users');
+      list.innerHTML = '';
+      if (r.ok) {
+        r.data.forEach(u => {
+          const li = document.createElement('li');
+          li.textContent = `${u.name} (${u.email})`;
+          list.appendChild(li);
+        });
+      } else {
+        list.innerHTML = `<li class="err">Failed to load users (${r.status})</li>`;
+      }
+    }
+
+    async function createTask(ev) {
+      ev.preventDefault();
+      const title = document.getElementById('task-title').value.trim();
+      const description = document.getElementById('task-desc').value.trim();
+      if (!title || !description) return alert('Enter title and description');
+      const r = await api('/api/tasks', { method: 'POST', body: JSON.stringify({ title, description }) });
+      if (!r.ok) alert('Failed to create task: ' + JSON.stringify(r.data));
+      document.getElementById('task-title').value = '';
+      document.getElementById('task-desc').value = '';
+      loadTasks();
+    }
+
+    async function registerUser(ev) {
+      ev.preventDefault();
+      const name = document.getElementById('user-name').value.trim();
+      const email = document.getElementById('user-email').value.trim();
+      if (!name || !email) return alert('Enter name and email');
+      const r = await api('/api/user/register', { method: 'POST', body: JSON.stringify({ name, email }) });
+      if (!r.ok) alert('Failed to register user: ' + JSON.stringify(r.data));
+      document.getElementById('user-name').value = '';
+      document.getElementById('user-email').value = '';
+      loadUsers();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('task-form').addEventListener('submit', createTask);
+      document.getElementById('user-form').addEventListener('submit', registerUser);
+      checkHealth();
+      loadTasks();
+      loadUsers();
+    });
+  </script>
+  </head>
+  <body>
+    <h1>Task Manager</h1>
+    <p>Task service: <span id="task-health">checking…</span> • User service: <span id="user-health">checking…</span></p>
+
+    <div class="row">
+      <div class="card">
+        <h3>Create Task</h3>
+        <form id="task-form">
+          <label for="task-title">Title</label>
+          <input id="task-title" placeholder="e.g., Buy milk" />
+          <label for="task-desc">Description</label>
+          <textarea id="task-desc" placeholder="e.g., 2L whole"></textarea>
+          <button type="submit">Add Task</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h3>Register User</h3>
+        <form id="user-form">
+          <label for="user-name">Name</label>
+          <input id="user-name" placeholder="Alice" />
+          <label for="user-email">Email</label>
+          <input id="user-email" placeholder="alice@example.com" />
+          <button type="submit">Register</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top: 20px;">
+      <div class="card">
+        <h3>Tasks</h3>
+        <ul id="tasks"></ul>
+      </div>
+      <div class="card">
+        <h3>Users</h3>
+        <ul id="users"></ul>
+      </div>
+    </div>
+
+    <p class="footer">Frontend served by Nginx; APIs under /api/tasks and /api/user.</p>
+  </body>
+  </html>

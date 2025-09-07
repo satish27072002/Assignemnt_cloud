@@ -102,7 +102,7 @@ def get_tasks():
         conn = get_db_connection()
         if conn:
             with conn.cursor() as cursor:
-                cursor.execute("SELECT id, title, description FROM tasks")
+                cursor.execute("SELECT id, title, description, status FROM tasks ORDER BY title ASC")
                 tasks = cursor.fetchall()
                 conn.close()
 

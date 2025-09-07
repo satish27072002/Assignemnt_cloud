@@ -10,17 +10,61 @@ spec:
   - host: task-user.local
     http:
       paths:
-      - path: /
+      - path: /api/health
         pathType: Prefix
         backend:
           service:
             name: task-service
             port:
               number: 80
-      - path: /user
+      - path: /api/tasks
+        pathType: Prefix
+        backend:
+          service:
+            name: task-service
+            port:
+              number: 80
+      - path: /api/user
         pathType: Prefix
         backend:
           service:
             name: user-service
+            port:
+              number: 80
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
+            port:
+              number: 80
+  - http:
+      paths:
+      - path: /api/health
+        pathType: Prefix
+        backend:
+          service:
+            name: task-service
+            port:
+              number: 80
+      - path: /api/tasks
+        pathType: Prefix
+        backend:
+          service:
+            name: task-service
+            port:
+              number: 80
+      - path: /api/user
+        pathType: Prefix
+        backend:
+          service:
+            name: user-service
+            port:
+              number: 80
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend
             port:
               number: 80
