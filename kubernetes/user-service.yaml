@@ -14,7 +14,8 @@ spec:
     spec:
       containers:
       - name: user-service
-        image: satish27072002/user-service:v4
+        image: user-service:local
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5000
         env: # Environment variables for database connection

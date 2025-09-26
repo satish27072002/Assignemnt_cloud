@@ -14,7 +14,8 @@ spec:
     spec:
       containers:
       - name: task-service
-        image: satish27072002/task-service:v4 # Updated image
+        image: task-service:local
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5001
         env: # Environment variables for database connection

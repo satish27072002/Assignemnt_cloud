@@ -26,7 +26,7 @@
     }
 
     async function checkHealth() {
-      const t = await api('/api/health'); // task-service aliased health
+      const t = await api('/api/health');
       const u = await api('/api/user/health');
       document.getElementById('task-health').textContent = t.ok ? 'healthy' : 'unhealthy';
       document.getElementById('user-health').textContent = u.ok ? 'healthy' : 'unhealthy';
@@ -116,7 +116,7 @@
   </head>
   <body>
     <h1>Task Manager</h1>
-    <p>Task service: <span id="task-health">checking…</span> • User service: <span id="user-health">checking…</span></p>
+    <p>Task service: <span id="task-health">checking...</span> | User service: <span id="user-health">checking...</span></p>
 
     <div class="row">
       <div class="card">
